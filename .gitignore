@@ -1,0 +1,5 @@
+.DS_Store
+.vagrant
+twitter-scraper/lib/*
+twitter-scraper/classes/*
+twitter-scraper/*.jar
