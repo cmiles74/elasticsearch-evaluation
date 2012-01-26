@@ -91,70 +91,70 @@
   (for [status-in (extract-statuses (fetch-page twitter-url-in))]
     (extract-status status-in)))
 
-(defn load-status-map
+(defn transform-status
+  "Transforms a hash-map of status data into a String of JSON data
+  suitable for loading."
   [status-map]
-  )
+  (json/generate-string status-map))
 
-(defn main
+(defn get-es-client
+  "Returns a new Elasticsearch client that is all ready to load data
+  into our cluster."
+  []
+
+  ;; create a new client
+  (let [es-client (TransportClient.)]
+
+    ;; point the client at our nodes
+    (doto es-client
+      (.addTransportAddress
+       (InetSocketTransportAddress. "33.33.33.10" 9300))
+      (.addTransportAddress
+       (InetSocketTransportAddress. "33.33.33.11" 9300))
+      (.addTransportAddress
+       (InetSocketTransportAddress. "33.33.33.12" 9300)))))
+
+(defn -main
   "Provides the bootstrapping function for the application."
   [& args-in]
   (info "Hello from Twitter Scraper!")
 
-  (info "Setting up ES client...")
-  (let [es-client (TransportClient.)]
-    (.addTransportAddress es-client
-                          (InetSocketTransportAddress. "33.33.33.10" 9300))
-    (.addTransportAddress es-client
-                          (InetSocketTransportAddress. "33.33.33.11" 9300))
-    (.addTransportAddress es-client
-                          (InetSocketTransportAddress. "33.33.33.12" 9300))
+  ;; we setup our client, an atom to accumulate statud ids and we store
+  ;; the start-time of our loading processs in another atom
+  (let [es-client (get-es-client)
+        ids (atom (hash-set))
+        start-time (atom (.getTime (Date.)))]
 
-    (info "ES Client ready!")
+    ;; we're going to keep reloading the seed forever
+    (while true
 
-      ;; we'll accumulate the id's of the status here
-      (let [ids (atom (hash-set))
-            start-time (atom (.getTime (Date.)))]
+      ;; scrape the seed URL
+      (let [statuses (status-maps SEED-URL)]
 
-        ;; we're going to keep reloading the seed forever
-        (while true
+        (info (str (count statuses) " Twitter status messages extracted"))
 
-          ;; scrape the seed URL
-          (info "Loading the seed URL...")
-          (let [statuses (status-maps SEED-URL)]
+        ;; handle each status
+        (doseq [status statuses]
 
-            (info (str (count statuses) " Twitter status messages extracted"))
+          ;; check to see if this is a new status
+          (if (not (@ids (:id status)))
 
-            ;; handle each status
-            (doseq [status statuses]
+            ;; load in this status
+            (do (info (str "Loading status " (:id status)))
 
-              ;; check to see if this is a new status
-              (if (not (@ids (:id status)))
+                ;; prepare the index to load our data, set the source
+                ;; content to our JSON String and then execute the insert
+                (.execute (.setSource (.prepareIndex es-client
+                                                     "twitter"
+                                                     "tweet"
+                                                     (:id status))
+                                      (transform-status status)))
 
-                (do
+                ;; add the id to our accumulator
+                (swap! ids conj (:id status))))))
 
-                  ;; load in this status
-                  (info (str "Loading status " (:id status)))
-
-                  (.execute
-                   (.setSource
-                    (.prepareIndex es-client
-                                   "twitter"
-                                   "tweet"
-                                   (:id status))
-                    (json/generate-string status)))
-
-                  ;; add the id to our accumulator
-                  (swap! ids conj (:id status)))
-
-                (info (str "Duplicate status " (:id status))))))
-
-          ;; wait a minute before re-fetching
-          (let [elapsed (- (.getTime (Date.)) @start-time)]
-            (if (> 60000 elapsed)
-              (Thread/sleep (- 60000 elapsed)))
-            (reset! start-time (.getTime (Date.))))))))
-
-(defn -main
-  "Provides the main entry point for the application."
-  [& args]
-  (apply main args))
+      ;; wait a minute before re-fetching
+      (let [elapsed (- (.getTime (Date.)) @start-time)]
+        (if (> 60000 elapsed)
+          (Thread/sleep (- 60000 elapsed)))
+        (reset! start-time (.getTime (Date.)))))))
