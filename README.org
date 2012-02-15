@@ -1,0 +1,39 @@
+#+STARTUP: showall indent hide-starts
+#+OPTIONS:     H:2 num:nil tags:nil toc:nil timestamps:nil
+#+TITLE: Elasticsearch Evaluation
+
+This project provides a Vagrant description file and a set of
+cookbooks that will build a three node Elasticsearch cluster. In
+addition an application (“twitter-scraper”) is provided that will
+scrape data from the Twitter public time-line and load this data into
+the cluster.
+
+This project is meant to provide a simple and straightforward method
+for setting up and testing an Elasticsearch cluster. It is meant for
+development purposes, clearly a cluster of virtual machines will not
+accurately reflect the performance of Elasticsearch. Rather this
+project should be used to gauge the functionality of the project and
+the elasticity of an Elasticsearch cluster.
+
+* Vagrant Project
+
+The Vagrant project will instantiate three VirtualBox virtual machines
+using the “lucid32” image, install the Oracle (formerly Sun) Java
+virtual machine and then install Elasticsearch. These nodes will be
+attached to a host-only network on the first ethernet interface and
+their IP addresses are hard-coded to be in the 33.33.33.x range.
+
+All of this can be configured in the Vagrant file. We’re using the
+Oracle JVM because we also do work with Hadoop and this is a
+requirement for us. You shouldn’t have to customize any of the
+included recipes directly.
+
+* Twitter Scraper
+
+The Twitter Scraper project provides a very simple application that
+will scrape the data from the Twitter public time-line and load it
+into the Elasticsearch cluster. It’s not particularly clever and
+doesn’t do a great job, rather it’s meant to illustrate how to scrape
+data from a web page and load that into Elasticsearch. As an added
+benefit, after you run it for a little while you’ll have some data in
+your cluster to test with.
